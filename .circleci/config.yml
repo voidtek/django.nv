@@ -17,23 +17,24 @@ jobs:
           pip install -r requirements.txt
           python manage.py test taskManager
 
-  oast-frontend:
-    machine: true
+  oast-snyk:
+    docker:
+      - image: node:alpine3.10
     steps:
       - checkout
 
-      - run:
-          name: Install npm packages
-          command: npm install
-
-      - run:
-          name: Run RetireJS
+      - run: 
           command: |
-            docker run --rm -v $(pwd):/src -w /src hysnsec/retire --outputformat json --outputpath retirejs-output.json --severity high
+            wget -O snyk https://github.com/snyk/cli/releases/download/v1.1156.0/snyk-alpine
+            chmod +x snyk
+            mv snyk /usr/local/bin/
+            npm install
+            snyk auth $SNYK_TOKEN
+            snyk test --json > snyk-results.json || true
 
       - store_artifacts:
-          path: retirejs-output.json
-          destination: retirejs-artifact
+          path: snyk-results.json
+          destination: snyk-artifact
           when: always
 
   integration:
@@ -62,12 +63,12 @@ workflows:
       - test:
           requires:
             - build
-      - oast-frontend:
+      - oast-snyk:
           requires:
             - test
       - integration:
           requires:
-            - oast-frontend
+            - oast-snyk
       - prod:
           type: approval
           requires:
