@@ -9,10 +9,10 @@ jobs:
   build:
     runs-on: ubuntu-20.04                    # similar to "image" in GitLab
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v2
 
       - name: Setup python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v2
         with:
           python-version: '3.6'
 
@@ -27,10 +27,10 @@ jobs:
     runs-on: ubuntu-20.04
     needs: build
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v2
 
       - name: Setup python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v2
         with:
           python-version: '3.6'
 
@@ -41,31 +41,38 @@ jobs:
           pip install -r requirements.txt
           python manage.py test taskManager
 
-  oast-frontend:
+  oast-snyk:
     runs-on: ubuntu-20.04
     needs: test
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@master
+      - uses: snyk/actions/setup@master
+      - uses: actions/setup-go@v1
         with:
-          node-version: '12.x'
+          go-version: "1.13"
 
-      - run: npm install
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '10.x'
 
-      - run: docker run --rm -v $(pwd):/src -w /src hysnsec/retire --outputformat json --outputpath retirejs-report.json --severity high
-        continue-on-error: true
+      - name: Install Node modules
+        run: npm install
+
+      - name: Run Snyk
+        run: snyk test --json > snyk-results.json
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true             # allow the build to fail, similar to allow_failure: true
 
       - uses: actions/upload-artifact@v4
-        name: "Upload RetireJS Artifact - v4"
         with:
-          name: RetireJS
-          path: retirejs-report.json
-        if: always()                        # what is this for?
+          name: Snyk
+          path: snyk-results.json
+        if: always()        # what is this for?
 
   integration:
     runs-on: ubuntu-20.04
-    needs: oast-frontend
+    needs: oast-snyk
     steps:
       - run: echo "This is an integration step"
       - run: exit 1
